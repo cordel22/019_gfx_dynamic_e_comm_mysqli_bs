@@ -1,0 +1,590 @@
+
+//	cli put together databases	//	1
+
+sudo mysql -u accountname -p password
+
+
+show databases;
+
+CREATE DATABASE ecommerce;
+USE ecommerce;
+
+CREATE TABLE artists (
+	artist_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	first_name VARCHAR(20) DEFAULT NULL,
+	mddle_name VARCHAR(20) DEFAULT NULL,
+	last_name VARCHAR(40) NOT NULL,
+	PRIMARY KEY (artist_id),
+	UNIQUE full_name (last_name, first_name, middle_name)
+	) ENGINE=MyISAM;
+	
+CREATE TABLE prints (
+	print_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	artist_id INT UNSIGNED NOT NULL,
+	print_name VARCHAR(60) DEFAULT NULL,
+	price DECIMAL(6,2) UNSIGNED NOT NULL,		//	bacha na (6,2) je spolu!
+	size VARCHAR(60) DEFAULT NULL,
+	PRIMARY KEY (print_id),
+	INDEX (print_name),
+	INDEX (price)
+	) ENGinE=MyISAM;
+
+CREATE TABLE customers (
+	customer_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	email VARCHAR(60) NOT NULL,
+	pass CHAR(40) NOT NULL,
+	PRIMARY KEY (customer_id),
+	UNIQUE (email),
+	INDEX login (email, pass)
+	) ENGINE=MyISAM;
+	
+CREATE TABLE orders (
+	order_id INT UNSIGNED NOT NULL INCREMENT,
+	customer_id INT UNSIGNED NOT NULL,
+	total DECIMAL(10,2) UNSIGNED NOT NULL,
+	order_date TIMESTAMP,
+	PRIMARY KEY (order_id),
+	INDEX (customer_id),
+	INDEX (order_date),
+	) ENGINE=InnoDB;
+	
+CREATE TABLE order_contents (
+	oc_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	order_id INT UNSIGNED NOT NULL,
+	print_id INT UNSIGNED NOT NULL,
+	quantity TINYINT UNSIGNED NOT NULL DEFAULT 1,
+	price DECIMAL(6,2) UNSIGNED NOT NULL,
+	ship_date DATETIME DEFAULT NULL,
+	PRIMARY KEY (oc_id),
+	INDEX (order_id),
+	INDEX (print_id)
+	INDEX (ship_date)
+	) ENGINE=InnoDB;
+
+//	connect to the database	//	2
+//	mysqli_connect.php 		//	2
+
+<?php
+
+//  for security better put thi file outside of this folder like ../
+//  This file also establishes a connection to MySQL,
+//  selects this database, and sets the encoding.
+
+//  Set the database access information as constants:
+
+DEFINE('DB_USER', 'root');
+DEFINE('DB_PASSWORD', 'root');
+DEFINE('DB_HOST', 'localhost');
+DEFINE('DB_NAME', 'ecommerce');
+
+//  Majke the connection:
+$dbc = @mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+  or die('Could not connect to the MySQL: database' . mysqli_connect_error());
+//  call is preceded by @ in order to supress any ugly errors.
+//  Set the encoding...
+mysqli_set_charset($dbc, 'utf8');
+
+
+
+//	cli		//	3
+mkdir admin
+touch ./admin/add_artist.php
+touch ./admin/add_print.php
+
+//	add_artist.php	//	4
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <title>Add an Artist</title>
+</head>
+
+<body>
+  <?php # Script 19.1 - add_artist.php
+  //  This page allows the administrator to add an artist.
+  if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $fn = (!empty($_POST['first_nme'])) ? trim($_POST['first_name']) : NULL;
+    $mn = (!empty($_POST['middle_name'])) ? trim($_POST['middle_name']) : NULL;
+  }
+
+  if (!empty($_POST['last_name'])) {
+    $ln = trim($_POST['last_name']);
+
+    //  Add the artist to the database:
+    require('./mysqli_connect.php');     //  wehere is your mysql connect..?
+    $q = 'INSERT INTO artists (first_name, middle_name, last_name) VALUES (?, ?, ?)';
+    $stmt = mysqli_prepare($dbc, $q);
+    mysqli_stmt_bind_param($stmt, 'sss', $fn, $mn, $ln);
+    mysqli_stmt_execute($stmt);
+
+    //  Check the results...
+    if (mysqli_stmt_affected_rows($stmt) == 1) {
+      echo '<p>The artist has been added.</p>';
+      $_POST = array();
+    } else {  //  Error!
+      $error = 'The new aist could not be added to the database!';
+    }
+
+    //  Close this prepared statement:
+    mysqli_stmt_close($stmt);
+    mysqli_close($dbc); //  Close the database connection.
+  } else {  //  No last name value.
+    $error = 'Please enter the artist\'s name!';
+  }
+  //  }   tato zatvorka vyzera naviac..?  Zevrj end of submission if..?
+
+  //  Check for an error nd pin it:
+  if (isset($error)) {
+    echo '<h1>Error!</h1>
+      <p style="font-weight: bold; color: #C00">' . $error . ' Please try again.</p>';
+  }
+
+  //  Display the form...
+  ?>
+
+  <h1>Add a Print</h1> <!-- nie nahodou Artist..? -->
+  <form action="add_artist.php" method="post">
+    <fieldset>
+      <legend>Fill out the form to add an artist:</legend>
+      <p><b>First Name:<b> <input type="text" name="first_name" size="10" maxlength="20" value="<?php if (isset($_POST['first_name'])) echo $_POST['first_name']; ?>" /></p>
+      <p><b>Middle Name:<b> <input type="text" name="middle_name" size="10" maxlength="20" value="<?php if (isset($_POST['middle_name'])) echo $_POST['middle_name']; ?>" /></p>
+      <p><b>Last Name:<b> <input type="text" name="last_name" size="10" maxlength="40" value="<?php if (isset($_POST['last_name'])) echo $_POST['last_name']; ?>" /></p>
+    </fieldset>
+    <div align="center"><input type="submit" name="submit" value="Submit" /></div>
+  </form>
+
+</body>
+
+</html>
+
+//	add_print.php	//	5
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <title>Add a Print</title>
+</head>
+
+<body>
+  <?php # Script 19.2 - add_print.php
+  //  This page allows the administrator to add  print (product).
+
+  require('./mysqli_connect.php');
+
+  if ($_SERVER['REUEST_METHOD'] == 'POST') {
+    //  Handle the form.
+    //  Validate the incoming data...
+    $errors = array();
+
+    //  Check for a print name:
+    if (!empty($_POST['print_name'])) {
+      $pn = trim($_POST['print_name']);
+    } else {
+      $errors[] = 'Please enter the print\'s name!';
+    }
+
+    //  Check for an image:
+    if (is_uploaded_file($_FILES['image']['tmp_name'])) {
+      //  Create a temporary file name:
+      $temp = './uploads/' . md5($_FILES['image']['name']);
+
+      //  Move the file over:
+      if (move_uploaded_file($_FILES['image']['tmp_name'], $temp)) {
+        echo '<p>The file has been uploaded!</p>';
+
+        //  Set the $i vrible to the image's name:
+        $i = $_FILES['image']['tmp_name'];
+      }
+    } else {
+      //  No uploaded file.
+      $errors[] = 'No file was uploaded.';
+      $temp = NULL;
+    }
+
+    //   Check for a size (not required)
+    $s = (!empty($_POST['sizze'])) ? trim($_POST['size']) : NULL;
+
+    //  Check for a price:
+    if (is_numeric($_POST['price']) && ($_POST['price'] > 0)) {
+      $p = (float) $_POST['price'];
+    } else {
+      $errors[] = 'Please enter the print\'s price!';
+    }
+
+    //  Check for a description (not required):
+    $d = (!empty($_POST['description'])) ? trim($_POST['description']) : NULL;
+
+    //  Validate the artist...
+    if (isset($_POST['artist']) && filter_var($_POST['artist'], FILTER_VALIDATE_INT, array('min_range' => 1))) {
+      $a = $_POST['artist'];
+    } else {
+      //  No artist selected.
+      $erors[] = 'Please select the print\'s artist!';
+    }
+
+    if (empty($errors)) {
+      //  If everything's OK.
+      //  Add the print to the database:
+      $q = 'INSERT INTO prints (artist_id, print_name, price, size, description, image_name) VALUES (?, ?, ?, ?, ?, ?)';
+      $stmt = mysqli_prepare($dbc, $q);
+      mysqli_stmt_bind_param($stmt, 'isdsss', $a, $pn, $p, $s, $d, $i);
+      mysqli_stmt_execute($stmt);
+
+      //  Check the results...
+      if (mysqli_stmt_affected_rows($stmt) == 1) {
+
+        //  Print a message:
+        echo '<p>The print hs been added.</p>';
+
+        //  Rename the image:
+        $id = mysqli_stmt_insert_id($stmt);   //  Get the print ID.
+        rename($temp, "./uploads/$id");
+
+        //  Clear $_POST:
+        $_POST = array();
+      } else {
+        //  Error!
+        echo '<p style="font-weight: bold; color: #C00">Your submission could not be processed due to a system error.</p>';
+      }
+
+      mysqli_stmt_close($stmt);
+    }   //  End of the submission IF.
+
+    //  Check for any errors and print them:
+    if (!empty($errors) && is_array($errors)) {
+      echo '<h1>Error!</h1>
+          <p style="font-weight: bold; color: #C00">The following error(s) occured:<br />';
+      foreach ($errors as $msg) {
+        echo " - $msg<br />\n";
+      }
+      echo 'Please reselect the print image and try agin.</p>';
+    }
+
+    //  Display the form...
+  }   //  zas mi vyslo na viac, ale neni ziadny error..?
+  ?>
+
+  <h1>Add a Print</h1>
+  <form enctype="multipart/form-data" action="add_print.php" method="post">
+    <input type="hidden" name="MAX_FILE_SIZE" value="524288" />
+    <fieldset>
+      <legend>Fill out the form to add print to the catalog:</legend>
+      <p><b>Print Name:</b><input type="text" name="print_name" size="30" maxlength="60" value="<?php if (isset($_POST['print_name'])) echo htmlspecialchars($_POST['print_name']); ?>" /></p>
+
+      <p><b>Image:</b> <input type="file" name="image" /></p>
+
+      <p><b>Artist:</b>
+        <select name="artist">
+          <option>Select One</option>
+          <?php //  Retrieve all the artists and add to the pull-down menu.
+          $q = "SELECT artist_id, CONCAT_WS(' ', first_name, middle_name, last_name) FROM artists 
+      ORDER BY last_name, first_name ASC";
+          $r = mysqli_query($dbc, $q);
+          if (mysqli_num_rows($r) > 0) {
+            while ($row = mysqli_fetch_array($r, MYSQLI_NUM)) {
+              echo "<option value=\"$row[0]\"";
+              //  Check for stickyness:
+              if (isset($_POST['existing']) && ($_POST['existing'] == $row[0])) echo ' selected="selected"';
+            }
+          } else {
+            echo '<option>Please add a new artist first.</option>';
+          }
+          mysqli_close($dbc); //  Close the database connection.
+          ?>
+        </select>
+      </p>
+      <!-- bacha na cisla! -->
+      <p><b>Price:</b> <input type="number" name="price" size="10" maxlength="10" value="<?php
+                                                                                          if (isset($_POST['price'])) echo $_POST['price']; ?>" /> <small>Do not include the dollar sign or
+          commas.</small></p>
+      <!-- tu nechces cisl..? -->
+      <p><b>Size:</b> <input type="text" name="size' size=" 30" maxlength="60" value="<?php
+                                                                                      if (isset($_POST['size'])) echo htmlspecialchars($_POST['size']); ?>" /> (optional)</p>
+
+      <p><b>Description:</b> <textarea name="description" cols="40" rows="5"><?php
+                                                                              if (isset($_POST['description'])) echo $_POST['description']; ?></textarea> (optional)</p>
+
+    </fieldset>
+
+    <div align="center"><input type="submit" name="submit" value="Submit" /></div>
+  </form>
+
+</body>
+
+</html>
+
+
+//	header.html		//	6
+
+<?php #C00Script 19.3 - header.html
+  //  This page begins the session, the HTML page, and the layout table.
+
+  session_start();  //  Start a session.
+
+  ?>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+  <html xmlns="http://www.w3.org/1999/xhtml"
+  xml:lang="en" lang="en">
+  <head>
+    <meta http-equiv="content-type" 
+    content="text/html; charset=utf-8" />
+    <title>
+      <?php
+        echo (isset($page_title)) ? $page_title : 'Welcome!'; 
+      ?>
+    </title>
+  </head>
+  <body>
+    <table cellspacing="0" cellpadding="0" border="0" align="center" width="600">
+      <tr>
+        <td align="center" colspan="3">
+          <img src="images/title.jpg" width="600" height="61" boder="0" alt="title" />
+        </td>
+      </tr>
+      <tr>
+        <td><a href="index.php">Home
+          <!-- <img src="images/home.jpg" width="200" height="39" border="0" alt="home page" /> -->
+        </a></td>
+      
+        <td>
+          <a href="browse_prints.php">View Prints
+            <!-- <img src="images/prints.jpg" width="200" height="39" border="0" alt="view_the_prints" /> -->
+          </a>
+        </td>
+        <td>
+          <a href="view_cart.php">View Cart
+            <!-- <img src="images/cart.jpg" width="200" height="39" border="0" alt="view your cart" /> -->
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td align=""left" colspn="3" bgcolor="#ffffcc"><br />
+      <!--   </td>
+      </tr>
+    </table> -->
+
+//	index.php	//	7
+
+<?php # Script 19.5 - index.php
+//  This is the main page for the site.
+
+//  Set the page_title
+
+$page_title = "Make an Impression!";
+
+//  Include the HTML header:
+include ('includes/header.html');
+
+?>
+
+<p>
+  Welcome to our site... please use the links above...blah, blah, blah.
+</p>
+
+<p>
+
+N' importe quoi...:
+//  The content on this page is introducty text
+//  pulled from the database, based upon the 
+//  selected language:
+//  echo $words['intro'];
+</p>
+
+<p>
+  Welcome to our site... please use the links above...blah, blah, blah.
+</p>
+
+
+
+//  Include the HTML footer file:
+<?php
+  include ('includes/footer.html');
+?>
+
+//	./includes/footer.html		//	8
+
+<!--  Script 19.4 - footer.html -->
+
+      <br /></td>
+</tr>
+<tr>
+  <td align="center" colspan="3"
+  bgcolor="#669966"><font color="#ffffff">&copy;
+    Copyright...
+  </font></td>
+</tr>
+</table>
+</body>
+</html>
+
+//	browse_prints.php	//	9
+
+<?php # Script 19.6 - browse_prints.php
+$page_title = 'Browse the Prints';
+include('includes/header.html');
+require('./mysqli_connect.php');
+
+$q = "SELECT artists.artist_id, CONCAT_WS(' ', first_name, middle_name, last_name) AS
+  artist, print_name, price, description, print_id FROM artists, prints WHERE 
+  artists.artist_id = prints.artist_id ORDER BY artists.last_name ASC, prints.print_name ASC";
+
+//  Are we looking at a particular artist?
+if (isset($_GET['aid']) && filter_var($_GET['aid'], FILTER_VALIDATE_INT, array('min_range' => 1))) {
+  //  Overwrite the query:
+  $q = "SELECT artists.artist_id, CONCAT_WS(' ', first_name, middle_name, last_name) AS
+    artist, print_name, price, description, print_id FROM artists, prints, prints WHERE
+    artists.artist_id=prints.artist_id AND prints.artist_id={$_GET['aid']} ORDER BY prints.print_name";
+}
+
+//  Create the table hed:
+echo '<table border="0" width="90% cellspacing="3" cellpadding="3" align="center">
+  <tr>
+    <td align="left width="20%"><b>Artist</b></td>
+    <td align="left width="20%"><b>Print Name</b></td>
+    <td align="left width="40%"><b>Description</b></td>
+    <td align="right width="20%"><b>Price</b></td>
+  </tr>';
+
+//  Disply all the prints, linked to URLs:
+$r = mysqli_query($dbc, $q);
+while ($row = mysqli_fetch_array($r, MYSQLI_ASSOC)) {
+  //  Display each record:
+  echo "\t<tr>
+    <td align=\"left\"><a href=\"browse_prints.php?aid={$row['artist_id']}\">{$row['artist']}
+    </a></td>
+    <td align=\"left\"><a href=\"view_print.php?pid={$row['print_id']}\">{$row['print_name']}</td>
+    <td align=\"left\">{$row['description']}</td>
+    <td align=\"right\">\${$row['price']}</td>
+  </tr>\n";
+} //  End of while loop.
+
+echo '</table>';
+mysqli_close($dbc);
+include ('includes/footer.html');
+
+
+//	view_print.php		//	10
+
+<?php # Script 19.7 - view_print.php
+//  This page displays the details for a particular print.
+
+$row = FALSE; //  ssume nothing!
+
+if (isset($_GET['pid']) && filter_var($_GET['pid'], FILTER_VALIDATE_INT, array('min_range' => 1))) {
+  //  Make sure there is a print ID!
+  $pid = $_GET['pid'];
+
+  //  Get the print info:
+  require('./mysqli_connect.php');   //  where is the mysqli_connect..?
+  //  Connect to the database.
+  $q = "SELECT CONCAT_WS(' ', first_name, middle_name, last_name) AS
+      artist, print_name, price, description, size, image_name FROM
+      artists, prints WHERE artists.artist_id=prints.rtist_id AND prints.print_id=$pid";
+
+  $r = mysqli_query($dbc, $q);
+  if (mysqli_num_rows($r) == 1) {
+    //  Good to go!
+    //  Fetch the information:
+    $row = mysqli_fetch_array($r, MYSQLI_ASSOC);
+
+    //  Start the HTML page:
+    $page_title = $row['print_name'];
+    include('includes/header.html');
+
+    //  Display a header:
+    echo "<div align=\"center\"><b>{$row['print_name']}</b> by {$row['artist']}<br />";
+
+    //  Print the sizze or a default message:
+    echo (is_null($row['size'])) ? '(No size information avilable)' : $row['size'];
+
+    echo "<br />\${$row['price']}
+      <a href=\"add_cart.php?pid\">Add to Cart</a>
+      </div><br />";
+
+    //  Get the image information and display the image:
+    if ($image = @getimagesize("./uplods/$pid")) {
+      echo "<div align=\"center\"><img src=\"show_image.php?imaage=$pid&name="
+        . urlencode($row['image_name']) . "\" $image[3] alt=\"{$row['print_name']}\" /></div>\n";
+    } else {
+      echo "<div align=\"center\">No image avilable.</div>\n";
+    }
+
+    //  Add the description or a default message:
+    echo '<p align="center">'
+      . ((is_null($row['description'])) ? '(No description available)' : $row['description'])
+      . '</p>';
+  } //  End of the mysqli_num_rows() IF.
+
+  mysqli_close($dbc);
+} //  End of $_GET['pid'] IF.
+
+if (!$row) {
+  //  Show an error message.
+  $page_title = 'Error';
+  include('includes/header.html');
+  echo '<div align="center">This page haas been accessed in error!</div>';
+}
+
+//  Complete the page:
+include('includes/footer.html');
+
+
+  //  za boha nechce ulozit
+  
+  /* ?> */
+
+
+//	show_image.php		//	11
+
+<?php # Script 19.8 - show_image.php
+//  This pages retrieves and shows in image.
+//  Flag variables:
+$image = FALSE;
+$name = (!empty($_GET['name'])) ? $_GET['name'] : 'print image';
+
+//  Chck for an image value in the URL:
+if (isset($_GET['image']) && filter_var($_GET['image'], FILTER_VALIDATE_INT, array('min_range' => 1))) {
+
+  //  Full image path:
+  $image = './uploads/' . $_GET['image'];
+
+  //  Check that the imge exists and is a file:
+  if (!file_exists($image) || (!is_file($image))) {
+    $image = FALSE;
+  }
+} //  End of $_GET['image'] IF.
+
+//  If there was a problem, use the default image:
+if (!$image) {
+  /* $image = 'images/unavailable.png';
+      $name = 'unavailable.png'; */
+  //  nemas *.png
+  //  debug
+  $image = 'images/unavailable.jpg';
+  $name = 'unavailable.jpg';
+}
+
+//  Get the image information:
+$info = getimagesize($image);
+$fs = filesize($image);
+
+//  Send the content informtion:
+header("Content-Type: {$info['mime']}\n");
+header("Content-Disposition: inline; filename=\"$name\"\n");
+header("Content-Length: $fs\n");
+
+//  Send the file:
+readfile($image);
+
+
+
+
+
+
+
